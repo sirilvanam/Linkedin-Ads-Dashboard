@@ -59,10 +59,14 @@
 <header>
   <div>
     <h1>LinkedIn Ads Optimization Dashboard</h1>
-    <p id="lastUpdated" style="color:var(--sub); font-size:12px; margin:4px 0 0;">Not connected — connect your sheet below to see data.</p>
+    <p id="lastUpdated" style="color:var(--sub); font-size:12px; margin:4px 0 0;">Not connected. Connect your sheet below to see data.</p>
     <div id="configBar" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
       <input type="text" id="apiUrlInput" placeholder="Paste your Google Apps Script Web App URL" style="flex:1; min-width:280px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text);">
       <button id="connectBtn" style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:#2a78d6; color:#fff; font-size:12px; cursor:pointer;">Connect</button>
+      <span style="color:var(--muted); font-size:12px;">or</span>
+      <label style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card2); color:var(--text); font-size:12px; cursor:pointer;">
+        Upload CSV<input type="file" id="csvUpload" accept=".csv,.txt" style="display:none;">
+      </label>
       <button id="howToBtn" style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card2); color:var(--text); font-size:12px; cursor:pointer;">How do I use this?</button>
     </div>
   </div>
@@ -85,22 +89,23 @@
   <div id="instructionsPanel" class="card" style="display:none; margin-bottom:24px;">
     <h2 style="font-size:16px; margin:0 0 14px;">How to use this dashboard</h2>
 
-    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 1 — Get your data from LinkedIn</p>
+    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 1: Get your data from LinkedIn</p>
     <ol style="font-size:13px; color:var(--sub); margin:0 0 18px; padding-left:18px; line-height:1.7;">
       <li>In LinkedIn Campaign Manager, go to <strong>Advertise &gt; Export</strong>.</li>
       <li>Select <strong>Ad set performance (broken out by day)</strong> as the report type.</li>
-      <li>Download the export and open it — this gives you one row per ad set per day, which is exactly the format this dashboard expects.</li>
+      <li>Download the export and open it. This gives you one row per ad set per day, which is exactly the format this dashboard expects.</li>
     </ol>
 
-    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 2 — Prepare your Google Sheet</p>
+    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 2: Prepare your Google Sheet</p>
     <ol style="font-size:13px; color:var(--sub); margin:0 0 18px; padding-left:18px; line-height:1.7;">
-      <li>Create a new Google Sheet (or use an existing one).</li>
-      <li>Copy all rows and columns from the LinkedIn export — including the header row — and paste them into the first tab, starting at cell A1. Don't skip rows or add extra header rows above it.</li>
+      <li>Open the downloaded file in Excel or Google Sheets (File &gt; Import &gt; Upload). LinkedIn's export is UTF-16 encoded and tab-separated. Both Excel and Sheets' Import handle this automatically when you open/import the file directly (don't copy-paste raw text, it can scramble the encoding).</li>
+      <li>The first 4 rows are report metadata ("Report Start", "Report End", "Date Generated") plus a blank row. <strong>Delete these top rows</strong> so your sheet's row 1 is the actual header row starting with <code>Start Date (in UTC)</code>.</li>
+      <li>Once imported, copy the header row and all data rows into the first tab of your working Google Sheet, starting at cell A1. Don't add extra header rows above it.</li>
       <li>Keep the LinkedIn column names exactly as exported. This dashboard specifically reads: <code>Start Date (in UTC)</code>, <code>Campaign Name</code>, <code>Ad Set Name</code>, <code>Clicks</code>, <code>Total Spent</code>, <code>Impressions</code>, <code>Leads</code>, <code>Conversions</code>, and <code>Campaign Status</code>.</li>
-      <li>Each time you have new data, paste the additional day(s) as new rows underneath the existing ones (don't overwrite history) — the dashboard will pick up everything currently in the sheet.</li>
+      <li>Each month, export fresh data from LinkedIn and paste the new day-wise rows underneath the existing ones (don't overwrite history). The dashboard picks up everything currently in the sheet.</li>
     </ol>
 
-    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 3 — Connect the sheet to this dashboard</p>
+    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 3: Connect the sheet to this dashboard</p>
     <ol style="font-size:13px; color:var(--sub); margin:0 0 18px; padding-left:18px; line-height:1.7;">
       <li>Download the Apps Script code: <a href="apps_script_code.gs" download style="color:#2a78d6;">apps_script_code.gs</a></li>
       <li>In your Google Sheet, go to <strong>Extensions &gt; Apps Script</strong>, delete any starter code, and paste in the downloaded file's contents.</li>
@@ -110,7 +115,11 @@
       <li>Copy the URL ending in <code>/exec</code>, paste it into the box above, and click <strong>Connect</strong>.</li>
     </ol>
 
-    <p style="font-size:12px; color:var(--muted); margin:16px 0 0;">Once connected, this dashboard shows spend, CTR, CPC, leads, and conversions by campaign and ad set, with sortable tables, date-range filters, and trend charts. The sheet connection talks directly to your own Google Apps Script endpoint — nothing passes through any other server.</p>
+    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Alternative: Upload the raw CSV directly</p>
+    <p style="font-size:13px; color:var(--sub); margin:0 0 8px;">If you just want a quick look, you can upload the LinkedIn export file as-is using the "Upload CSV" button above. No sheet or Apps Script setup needed.</p>
+    <p style="font-size:12px; color:#b33; margin:0 0 18px; padding:10px 12px; background:rgba(227,73,72,.08); border-radius:8px;"><strong>Important:</strong> LinkedIn only keeps day-wise (daily breakdown) data for the trailing 6 months. If you want to analyze performance over a longer period, uploading a single CSV export won't have that history. Connecting a Google Sheet and pasting in each month's export, building up history over time, is the only way to retain more than 6 months of daily data for trend analysis.</p>
+
+    <p style="font-size:12px; color:var(--muted); margin:16px 0 0;">Once connected, this dashboard shows spend, CTR, CPC, leads, and conversions by campaign and ad set, with sortable tables, date-range filters, and trend charts. The sheet connection talks directly to your own Google Apps Script endpoint. Nothing passes through any other server. Uploaded CSVs are parsed entirely in your browser.</p>
   </div>
 
   <div id="emptyStateMain" class="card" style="text-align:center; padding:60px 20px; color:var(--sub);">
@@ -220,6 +229,99 @@ document.getElementById('howToBtn').addEventListener('click', () => {
   panel.style.display = panel.style.display === 'none' ? '' : 'none';
 });
 
+document.getElementById('csvUpload').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const buf = evt.target.result;
+      const text = decodeLinkedInFile(buf);
+      const parsed = parseLinkedInText(text);
+      rawRows = parsed.map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]]);
+      campaignStatusLive = {};
+      parsed.forEach(r => { campaignStatusLive[r[1]] = r[8]; });
+      document.getElementById('lastUpdated').textContent = 'Loaded from uploaded file: ' + file.name + ' (' + parsed.length + ' rows)';
+      showDashboard();
+      initDashboard();
+    } catch(err){
+      document.getElementById('lastUpdated').textContent = 'Could not parse the file. Make sure it is the unmodified LinkedIn export.';
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function decodeLinkedInFile(buf){
+  const bytes = new Uint8Array(buf);
+  // Detect UTF-16 LE/BE BOM; LinkedIn exports are typically UTF-16 LE
+  if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE){
+    return new TextDecoder('utf-16le').decode(buf);
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF){
+    return new TextDecoder('utf-16be').decode(buf);
+  }
+  // Fallback: try utf-16le anyway (LinkedIn files decode fine even without BOM detection working),
+  // then fall back to utf-8 if that produces garbage.
+  try {
+    const t = new TextDecoder('utf-16le').decode(buf);
+    if (t.includes('Start Date')) return t;
+  } catch(e){}
+  return new TextDecoder('utf-8').decode(buf);
+}
+
+function parseLinkedInText(text){
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  // Find the real header row: the first line that contains "Start Date"
+  let headerIdx = lines.findIndex(l => l.includes('Start Date'));
+  if (headerIdx === -1) throw new Error('Header row not found');
+  const headers = splitTabLine(lines[headerIdx]).map(h => h.trim());
+  const col = {};
+  headers.forEach((h,i) => { col[h] = i; });
+  const need = ['Start Date (in UTC)','Campaign Name','Ad Set Name','Clicks','Total Spent','Impressions','Leads','Conversions'];
+  const missing = need.filter(k => !(k in col));
+  if (missing.length) throw new Error('Missing columns: ' + missing.join(', '));
+  const hasStatus = 'Campaign Status' in col;
+
+  const out = [];
+  for (let i = headerIdx + 1; i < lines.length; i++){
+    const parts = splitTabLine(lines[i]);
+    if (parts.length < headers.length - 5) continue; // skip malformed/trailing rows
+    const dateRaw = parts[col['Start Date (in UTC)']];
+    const dateIso = normalizeDateJs(dateRaw);
+    if (!dateIso) continue;
+    const clean = (v) => Number(String(v||'0').replace(/"/g,'').replace(/,/g,'').replace('%','')) || 0;
+    out.push([
+      dateIso,
+      (parts[col['Campaign Name']]||'').trim(),
+      (parts[col['Ad Set Name']]||'').trim(),
+      clean(parts[col['Clicks']]),
+      clean(parts[col['Total Spent']]),
+      clean(parts[col['Impressions']]),
+      clean(parts[col['Leads']]),
+      clean(parts[col['Conversions']]),
+      hasStatus ? (parts[col['Campaign Status']]||'Active').trim() : 'Active'
+    ]);
+  }
+  return out;
+}
+
+function splitTabLine(line){
+  // Handles quoted fields like "1,370.53" that may contain commas but are tab-delimited overall
+  return line.split('	').map(s => s.replace(/^"|"$/g, ''));
+}
+
+function normalizeDateJs(s){
+  s = String(s).trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  m = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (m) return `${m[3]}-${m[1]}-${m[2]}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return s;
+  return null;
+}
+
 function showDashboard(){
   document.getElementById('emptyStateMain').style.display = 'none';
   document.getElementById('dashboardBody').style.display = '';
@@ -249,16 +351,7 @@ let sortKey = 'spend', sortDir = -1;
 let statusFilter = 'all';
 let minDate, maxDate;
 
-const campaignStatus = {
-  'PDV_WebVisits_Stage1': 'Paused',
-  'PDV_WebCon_UseCase_Customer360nMDM': 'Active',
-  'PDV_LeadGen_UseCase_Customer360nMDM': 'Paused',
-  'PDV_WebVisits_Stage2': 'Active',
-  'PDV_WebCon_Remarketing_Customer360nMDM': 'Active',
-  'PDV_WebCon_Stage3': 'Active',
-  'PDV_LeadGen_Stage3': 'Active',
-  'PDV_WebCon_UseCases': 'Active'
-};
+const campaignStatus = {};
 
 function initDashboard(){
 const allDates = rawRows.map(r=>r[0]).sort();
@@ -266,6 +359,7 @@ minDate = allDates[0]; maxDate = allDates[allDates.length-1];
 document.getElementById('fromDate').value = minDate;
 document.getElementById('toDate').value = maxDate;
 
+for (const k in campaignStatus) delete campaignStatus[k];
 Object.assign(campaignStatus, campaignStatusLive);
 
 const campaignNames = [...new Set(rawRows.map(r=>r[1]))].sort();
