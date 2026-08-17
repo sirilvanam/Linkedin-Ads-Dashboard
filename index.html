@@ -397,13 +397,7 @@ function getFiltered(){
   const to = document.getElementById('toDate').value;
   let rows = rawRows.filter(r => r[0] >= from && r[0] <= to);
   if (statusFilter === 'active'){
-    // "Active" = campaign has spend/impressions recorded within the last 3 days of the full dataset
-    const cutoff = new Date(maxDate); cutoff.setDate(cutoff.getDate() - 3);
-    const cutoffStr = cutoff.toISOString().slice(0,10);
-    const activeCampaigns = new Set(
-      rawRows.filter(r => r[0] >= cutoffStr && (r[4] > 0 || r[5] > 0)).map(r => r[1])
-    );
-    rows = rows.filter(r => activeCampaigns.has(r[1]));
+    rows = rows.filter(r => (campaignStatus[r[1]] || 'Active') !== 'Paused');
   }
   return rows;
 }
@@ -601,15 +595,57 @@ function render(){
     `Showing ${document.getElementById('fromDate').value} to ${document.getElementById('toDate').value} · data through Aug 9, 2026 (latest fully-parsed snapshot) · sorted by ${sortKey}`;
 }
 
+if (!window.__pdvListenersBound) {
+window.__pdvListenersBound = true;
+
 document.querySelectorAll('th[data-key]').forEach(th=>{
   th.addEventListener('click', ()=>{
     const key = th.dataset.key;
     if (key==='name'||key==='adsets') { sortDir = sortKey===key ? -sortDir : 1; }
     else { sortDir = sortKey===key ? -sortDir : -1; }
     sortKey = key;
-    render();
+    window.__pdvRender();
   });
 });
+
+document.querySelectorAll('.presets button').forEach(b=>{
+  if (b.dataset.status){
+    b.addEventListener('click', () => {
+      document.querySelectorAll('[data-status]').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      statusFilter = b.dataset.status;
+      window.__pdvRender();
+    });
+  }
+});
+document.querySelectorAll('.presets button').forEach(b=>{
+  if (b.dataset.preset) b.addEventListener('click', () => window.__pdvSetPreset(b.dataset.preset === 'all' ? 'all' : Number(b.dataset.preset)));
+});
+document.getElementById('fromDate').addEventListener('change', () => {
+  document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
+  window.__pdvRender();
+});
+document.getElementById('toDate').addEventListener('change', () => {
+  document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
+  window.__pdvRender();
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
+    btn.classList.add('active');
+    document.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`).style.display='';
+  });
+});
+
+} // end listener guard
+
+// Reset status filter to a known state each time new data loads
+statusFilter = 'all';
+document.querySelectorAll('[data-status]').forEach(x=>x.classList.remove('active'));
+const allBtn = document.querySelector('.presets button[data-status="all"]');
+if (allBtn) allBtn.classList.add('active');
 
 function setPreset(days){
   document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
@@ -627,36 +663,8 @@ function setPreset(days){
   }
   render();
 }
-document.querySelectorAll('.presets button').forEach(b=>{
-  if (b.dataset.status){
-    b.addEventListener('click', () => {
-      document.querySelectorAll('[data-status]').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active');
-      statusFilter = b.dataset.status;
-      render();
-    });
-  }
-});
-document.querySelectorAll('.presets button').forEach(b=>{
-  if (b.dataset.preset) b.addEventListener('click', () => setPreset(b.dataset.preset === 'all' ? 'all' : Number(b.dataset.preset)));
-});
-document.getElementById('fromDate').addEventListener('change', () => {
-  document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
-  render();
-});
-document.getElementById('toDate').addEventListener('change', () => {
-  document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
-  render();
-});
-
-document.querySelectorAll('.tab-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
-    btn.classList.add('active');
-    document.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`).style.display='';
-  });
-});
+window.__pdvRender = render;
+window.__pdvSetPreset = setPreset;
 
 render();
 } // end initDashboard
