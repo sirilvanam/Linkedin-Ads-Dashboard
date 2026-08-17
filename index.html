@@ -59,7 +59,7 @@
 <header>
   <div>
     <h1>LinkedIn Ads Optimization Dashboard</h1>
-    <p id="lastUpdated" style="color:var(--sub); font-size:12px; margin:4px 0 0;">Loading live data…</p>
+    <p id="lastUpdated" style="color:var(--sub); font-size:12px; margin:4px 0 0;">Not connected — connect a sheet or upload a CSV below to see data.</p>
     <div id="configBar" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
       <input type="text" id="apiUrlInput" placeholder="Paste your Google Apps Script Web App URL" style="flex:1; min-width:280px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text);">
       <button id="connectBtn" style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:#2a78d6; color:#fff; font-size:12px; cursor:pointer;">Connect</button>
@@ -67,6 +67,7 @@
       <label style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card2); color:var(--text); font-size:12px; cursor:pointer;">
         Upload CSV<input type="file" id="csvUpload" accept=".csv" style="display:none;">
       </label>
+      <button id="howToBtn" style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card2); color:var(--text); font-size:12px; cursor:pointer;">How do I use this?</button>
     </div>
   </div>
   <div class="date-controls">
@@ -85,6 +86,39 @@
 </header>
 <div class="wrap">
 
+  <div id="instructionsPanel" class="card" style="display:none; margin-bottom:24px;">
+    <h2 style="font-size:16px; margin:0 0 14px;">How to use this dashboard</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div>
+        <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Option A — Connect a live Google Sheet</p>
+        <ol style="font-size:13px; color:var(--sub); margin:0; padding-left:18px; line-height:1.7;">
+          <li>Open your LinkedIn Ads export sheet in Google Sheets.</li>
+          <li>Go to <strong>Extensions &gt; Apps Script</strong>, delete any starter code.</li>
+          <li>Paste in the provided <code>apps_script_code.gs</code> file contents. Update <code>SHEET_NAME</code> if your tab isn't named "Sheet1".</li>
+          <li>Click <strong>Deploy &gt; New deployment</strong> &rarr; type <strong>Web app</strong>.</li>
+          <li>Set "Execute as" to <strong>Me</strong>, "Who has access" to <strong>Anyone</strong>. Deploy and authorize.</li>
+          <li>Copy the URL ending in <code>/exec</code>, paste it into the box above, click <strong>Connect</strong>.</li>
+        </ol>
+      </div>
+      <div>
+        <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Option B — Upload a CSV</p>
+        <ol style="font-size:13px; color:var(--sub); margin:0; padding-left:18px; line-height:1.7;">
+          <li>Export your campaign report from LinkedIn Campaign Manager (or Windsor.ai / similar) as CSV.</li>
+          <li>Make sure it includes these columns: <code>Start Date (in UTC)</code>, <code>Campaign Name</code>, <code>Ad Set Name</code>, <code>Clicks</code>, <code>Total Spent</code>, <code>Impressions</code>, <code>Leads</code>, <code>Conversions</code>.</li>
+          <li>Click <strong>Upload CSV</strong> above and select the file.</li>
+          <li>The dashboard loads instantly — no sheet connection needed, but it won't auto-refresh with new data.</li>
+        </ol>
+      </div>
+    </div>
+    <p style="font-size:12px; color:var(--muted); margin:16px 0 0;">Once connected, this dashboard shows spend, CTR, CPC, leads, and conversions by campaign and ad set, with sortable tables and date-range filters. Nothing is uploaded to any server — the CSV is parsed entirely in your browser, and the sheet connection talks directly to your own Google Apps Script endpoint.</p>
+  </div>
+
+  <div id="emptyStateMain" class="card" style="text-align:center; padding:60px 20px; color:var(--sub);">
+    <p style="font-size:15px; margin:0 0 8px; color:var(--text);">No data connected yet</p>
+    <p style="font-size:13px; margin:0;">Connect a Google Sheet or upload a CSV above to see your campaign performance.</p>
+  </div>
+
+  <div id="dashboardBody" style="display:none;">
   <div class="kpis" id="kpis"></div>
 
   <div class="section-title">
@@ -156,31 +190,34 @@
   </div>
 
   <p class="footer-note" id="footerNote"></p>
+  </div>
 </div>
 
 <script>
-// Live data fetched from Google Apps Script Web App
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyrUMBY29hVRSLUQk6NKVYf7dmApQVXMIay-emrmAVM0k9_GlwL5t7bE8FX7n_VksTo/exec';
+// No auto-load: dashboard only shows data once the user connects a sheet or uploads a CSV
 let rawRows = [];
 let campaignStatusLive = {};
 
 function getStoredUrl(){
-  try { return localStorage.getItem('pdv_dashboard_api_url') || DEFAULT_API_URL; }
-  catch(e){ return DEFAULT_API_URL; }
+  try { return localStorage.getItem('pdv_dashboard_api_url') || ''; }
+  catch(e){ return ''; }
 }
 function setStoredUrl(url){
   try { localStorage.setItem('pdv_dashboard_api_url', url); } catch(e){}
 }
 
-document.getElementById('apiUrlInput').value = getStoredUrl() === DEFAULT_API_URL ? '' : getStoredUrl();
-document.getElementById('apiUrlInput').placeholder = getStoredUrl() === DEFAULT_API_URL
-  ? 'Paste your own Google Apps Script Web App URL to use your own sheet'
-  : 'Paste your Google Apps Script Web App URL';
+document.getElementById('apiUrlInput').value = getStoredUrl();
 
 document.getElementById('connectBtn').addEventListener('click', () => {
   const val = document.getElementById('apiUrlInput').value.trim();
-  if (val){ setStoredUrl(val); loadData(val); }
-  else { setStoredUrl(DEFAULT_API_URL); loadData(DEFAULT_API_URL); }
+  if (!val) { document.getElementById('lastUpdated').textContent = 'Paste a Web App URL first.'; return; }
+  setStoredUrl(val);
+  loadData(val);
+});
+
+document.getElementById('howToBtn').addEventListener('click', () => {
+  const panel = document.getElementById('instructionsPanel');
+  panel.style.display = panel.style.display === 'none' ? '' : 'none';
 });
 
 document.getElementById('csvUpload').addEventListener('change', (e) => {
@@ -193,9 +230,10 @@ document.getElementById('csvUpload').addEventListener('change', (e) => {
       rawRows = rows;
       campaignStatusLive = {};
       document.getElementById('lastUpdated').textContent = 'Loaded from uploaded CSV: ' + file.name;
+      showDashboard();
       initDashboard();
     } catch(err){
-      document.getElementById('lastUpdated').textContent = 'Could not parse CSV — check the column headers match the expected export format.';
+      document.getElementById('lastUpdated').textContent = 'Could not parse CSV - check the column headers match the expected export format.';
       console.error(err);
     }
   };
@@ -203,7 +241,9 @@ document.getElementById('csvUpload').addEventListener('change', (e) => {
 });
 
 function parseCsv(text){
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  const lines = text.split(/
+?
+/).filter(l => l.trim().length > 0);
   const headers = splitCsvLine(lines[0]).map(h => h.trim());
   const col = {};
   headers.forEach((h,i) => { col[h] = i; });
@@ -252,19 +292,25 @@ function normalizeDateJs(s){
   return null;
 }
 
+function showDashboard(){
+  document.getElementById('emptyStateMain').style.display = 'none';
+  document.getElementById('dashboardBody').style.display = '';
+}
+
 async function loadData(url){
-  url = url || getStoredUrl();
-  document.getElementById('lastUpdated').textContent = 'Loading live data…';
+  if (!url) return;
+  document.getElementById('lastUpdated').textContent = 'Loading live data...';
   try {
     const res = await fetch(url);
     const json = await res.json();
     rawRows = json.rows.map(r => [r.date, r.campaign, r.adset, r.clicks, r.spend, r.impressions, r.leads, r.conversions]);
     campaignStatusLive = {};
     json.rows.forEach(r => { campaignStatusLive[r.campaign] = r.status; });
-    document.getElementById('lastUpdated').textContent = 'Live · last refreshed ' + new Date(json.generated_at).toLocaleString();
+    document.getElementById('lastUpdated').textContent = 'Live - last refreshed ' + new Date(json.generated_at).toLocaleString();
+    showDashboard();
     initDashboard();
   } catch (err) {
-    document.getElementById('lastUpdated').textContent = 'Could not load live data — check the URL, or upload a CSV instead.';
+    document.getElementById('lastUpdated').textContent = 'Could not load live data - check the URL, or upload a CSV instead.';
     console.error(err);
   }
 }
@@ -592,8 +638,6 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 
 render();
 } // end initDashboard
-
-loadData();
 </script>
 </body>
 </html>
