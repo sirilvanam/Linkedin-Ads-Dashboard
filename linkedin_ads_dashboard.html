@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LinkedIn Ads Optimization Dashboard — PII Data Vault</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --card2:#f0f2f5; --border:#e2e5ea;
+    --text:#16181d; --sub:#6b7280; --muted:#9aa1ad;
+    --blue:#2a78d6; --orange:#eb6834; --green:#1baf7a; --amber:#c98500; --pink:#d55181; --violet:#4a3aa7; --red:#e34948;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  header{padding:24px 40px; border-bottom:1px solid var(--border); background:var(--card); display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px;}
+  header h1{margin:0 0 4px; font-size:20px; font-weight:600;}
+  header p{margin:0; color:var(--sub); font-size:13px;}
+  .date-controls{display:flex; align-items:center; gap:8px; font-size:13px; flex-wrap:wrap;}
+  .date-controls label{color:var(--sub);}
+  .date-controls input[type=date], .date-controls select{padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--card); color:var(--text);}
+  .date-controls button{padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card2); color:var(--text); font-size:13px; cursor:pointer;}
+  .date-controls button.active{background:var(--blue); color:#fff; border-color:var(--blue);}
+  .presets{display:flex; gap:6px;}
+  .wrap{max-width:1280px; margin:0 auto; padding:28px 40px 60px;}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:32px;}
+  .kpi{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 18px;}
+  .kpi p.label{margin:0 0 6px; font-size:11px; color:var(--sub); text-transform:uppercase; letter-spacing:.04em;}
+  .kpi p.value{margin:0; font-size:22px; font-weight:600;}
+  .section-title{font-size:15px; font-weight:600; margin:36px 0 14px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr;} header{flex-direction:column; align-items:flex-start;}}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px;}
+  .chart-box{position:relative; height:260px;}
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin-bottom:10px; font-size:12px; color:var(--sub);}
+  .legend span.dot{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:middle;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; padding:10px 8px; color:var(--sub); font-weight:600; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:.03em; cursor:pointer; user-select:none; white-space:nowrap;}
+  th:hover{color:var(--text);}
+  th.sorted{color:var(--blue);}
+  td{padding:10px 8px; border-bottom:1px solid var(--border);}
+  tr.group-row{cursor:pointer;}
+  tr.group-row:hover{background:var(--card2);}
+  tr.detail-row td{background:var(--card2); padding:0;}
+  td.num, th.num{text-align:right;}
+  .pill{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; background:rgba(27,175,122,.12); color:#0f7a54;}
+  .pill.warn{background:rgba(227,73,72,.12); color:#b33;}
+  .caret{display:inline-block; margin-right:6px; transition:transform .15s; color:var(--muted); font-size:11px;}
+  .caret.open{transform:rotate(90deg);}
+  .subtable{width:100%; border-collapse:collapse;}
+  .subtable td{padding:8px 8px 8px 34px; border-bottom:1px solid var(--border); font-size:12.5px; color:var(--sub);}
+  .subtable td.num{text-align:right; color:var(--text);}
+  .footer-note{margin-top:36px; color:var(--muted); font-size:12px;}
+  .tab-btn{padding:8px 14px; border:none; background:none; color:var(--sub); font-size:13px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;}
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue); font-weight:500;}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>LinkedIn Ads Optimization Dashboard — PII Data Vault</h1>
+    <p id="lastUpdated" style="color:var(--sub); font-size:12px; margin:4px 0 0;">Loading live data…</p>
+  </div>
+  <div class="date-controls">
+    <div class="presets">
+      <button data-preset="7">7d</button>
+      <button data-preset="30">30d</button>
+      <button data-preset="all" class="active">All</button>
+    </div>
+    <label>From</label><input type="date" id="fromDate">
+    <label>To</label><input type="date" id="toDate">
+    <div class="presets">
+      <button data-status="all" class="active">All campaigns</button>
+      <button data-status="active">Active only</button>
+    </div>
+  </div>
+</header>
+<div class="wrap">
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="section-title">
+    <span>Trends</span>
+    <span style="display:flex; gap:8px;">
+      <select id="campaignFilter" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card);"></select>
+      <select id="adsetFilter" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); display:none;"></select>
+    </span>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap:6px; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:0;">
+      <button class="tab-btn active" data-tab="spend">Spend &amp; CTR</button>
+      <button class="tab-btn" data-tab="cpc">CPC</button>
+      <button class="tab-btn" data-tab="leads">Leads &amp; Conversions</button>
+      <button class="tab-btn" data-tab="impr">Impressions</button>
+      <button class="tab-btn" data-tab="clicks">Clicks</button>
+    </div>
+    <div class="tab-panel" data-panel="spend">
+      <div class="legend">
+        <span><span class="dot" style="background:#2a78d6"></span>Spend (Rs.)</span>
+        <span><span class="dot" style="background:#eb6834"></span>CTR (%)</span>
+      </div>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="tab-panel" data-panel="cpc" style="display:none;">
+      <div class="legend"><span><span class="dot" style="background:#4a3aa7"></span>Avg CPC (Rs.)</span></div>
+      <div class="chart-box"><canvas id="cpcTrendChart"></canvas></div>
+    </div>
+    <div class="tab-panel" data-panel="leads" style="display:none;">
+      <div class="legend">
+        <span><span class="dot" style="background:#1baf7a"></span>Leads</span>
+        <span><span class="dot" style="background:#c98500"></span>Conversions</span>
+      </div>
+      <div class="chart-box"><canvas id="leadsTrendChart"></canvas></div>
+    </div>
+    <div class="tab-panel" data-panel="impr" style="display:none;">
+      <div class="legend"><span><span class="dot" style="background:#2a78d6"></span>Impressions</span></div>
+      <div class="chart-box"><canvas id="imprTrendChart"></canvas></div>
+    </div>
+    <div class="tab-panel" data-panel="clicks" style="display:none;">
+      <div class="legend"><span><span class="dot" style="background:#eb6834"></span>Clicks</span></div>
+      <div class="chart-box"><canvas id="clicksTrendChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title">Cost efficiency by campaign</div>
+  <div class="card">
+    <div class="legend"><span>Avg CPC (Rs.) &mdash; sorted worst to best</span></div>
+    <div class="chart-box"><canvas id="cpcBarChart"></canvas></div>
+  </div>
+
+  <div class="section-title">Campaign performance (click header to sort, click row for ad sets)</div>
+  <div class="card">
+    <table>
+      <thead><tr id="tableHead">
+        <th data-key="name">Campaign</th>
+        <th class="num" data-key="adsets">Ad sets</th>
+        <th class="num" data-key="spend">Spend (Rs.)</th>
+        <th class="num" data-key="clicks">Clicks</th>
+        <th class="num" data-key="ctr">CTR</th>
+        <th class="num" data-key="cpc">Avg CPC</th>
+        <th class="num" data-key="conv">Conversions</th>
+        <th class="num" data-key="leads">Leads</th>
+        <th class="num" data-key="cpl">Cost/Lead</th>
+      </tr></thead>
+      <tbody id="groupTable"></tbody>
+    </table>
+    <div id="emptyState" class="footer-note" style="display:none; text-align:center; padding:30px;">No data in this date range.</div>
+  </div>
+
+  <p class="footer-note" id="footerNote"></p>
+</div>
+
+<script>
+// Live data fetched from Google Apps Script Web App
+const API_URL = 'https://script.google.com/macros/s/AKfycby4wn0E0wAluLY-ybldEsis4_0-N97g2LSmqx4GdFHdyuOOA2des3kPWQh_nQLmQxlg/exec';
+let rawRows = [];
+let dashboardReady = false;
+
+async function loadData(){
+  try {
+    const res = await fetch(API_URL);
+    const json = await res.json();
+    rawRows = json.rows.map(r => [r.date, r.campaign, r.adset, r.clicks, r.spend, r.impressions, r.leads, r.conversions]);
+    campaignStatusLive = {};
+    json.rows.forEach(r => { campaignStatusLive[r.campaign] = r.status; });
+    document.getElementById('lastUpdated').textContent = 'Live · last refreshed ' + new Date(json.generated_at).toLocaleString();
+    initDashboard();
+  } catch (err) {
+    document.getElementById('lastUpdated').textContent = 'Could not load live data — check the API_URL in this file.';
+    console.error(err);
+  }
+}
+let campaignStatusLive = {};
+
+const palette = ['#2a78d6','#eb6834','#1baf7a','#c98500','#d55181','#4a3aa7','#e34948','#008300'];
+let trendChart, cpcTrendChart, leadsTrendChart, cpcBarChart, imprTrendChart, clicksTrendChart;
+let sortKey = 'spend', sortDir = -1;
+let statusFilter = 'all';
+
+const allDates = rawRows.map(r=>r[0]).sort();
+const minDate = allDates[0], maxDate = allDates[allDates.length-1];
+document.getElementById('fromDate').value = minDate;
+document.getElementById('toDate').value = maxDate;
+
+const campaignStatus = {
+  'PDV_WebVisits_Stage1': 'Paused',
+  'PDV_WebCon_UseCase_Customer360nMDM': 'Active',
+  'PDV_LeadGen_UseCase_Customer360nMDM': 'Paused',
+  'PDV_WebVisits_Stage2': 'Active',
+  'PDV_WebCon_Remarketing_Customer360nMDM': 'Active',
+  'PDV_WebCon_Stage3': 'Active',
+  'PDV_LeadGen_Stage3': 'Active',
+  'PDV_WebCon_UseCases': 'Active'
+};
+
+function initDashboard(){
+Object.assign(campaignStatus, campaignStatusLive);
+
+const campaignNames = [...new Set(rawRows.map(r=>r[1]))].sort();
+const campaignFilter = document.getElementById('campaignFilter');
+campaignFilter.innerHTML = '<option value="__all__">All campaigns</option>' +
+  campaignNames.map(c=>{
+    const st = campaignStatus[c] || 'Active';
+    const label = st === 'Paused' ? `${c} (Paused)` : c;
+    return `<option value="${c}" data-status="${st}">${label}</option>`;
+  }).join('');
+campaignFilter.addEventListener('change', () => { updateAdsetFilter(); render(); });
+
+const adsetFilter = document.getElementById('adsetFilter');
+function updateAdsetFilter(){
+  const camp = campaignFilter.value;
+  if (camp === '__all__'){
+    adsetFilter.style.display = 'none';
+    adsetFilter.value = '__all__';
+    return;
+  }
+  const adsets = [...new Set(rawRows.filter(r=>r[1]===camp).map(r=>r[2]))];
+  if (adsets.length <= 1){
+    adsetFilter.style.display = 'none';
+    adsetFilter.value = '__all__';
+    return;
+  }
+  adsetFilter.innerHTML = '<option value="__all__">All ad sets</option>' +
+    adsets.map(a=>`<option value="${a}">${a}</option>`).join('');
+  adsetFilter.style.display = '';
+}
+adsetFilter.addEventListener('change', render);
+
+function getFiltered(){
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  let rows = rawRows.filter(r => r[0] >= from && r[0] <= to);
+  if (statusFilter === 'active'){
+    // "Active" = campaign has spend/impressions recorded within the last 3 days of the full dataset
+    const cutoff = new Date(maxDate); cutoff.setDate(cutoff.getDate() - 3);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+    const activeCampaigns = new Set(
+      rawRows.filter(r => r[0] >= cutoffStr && (r[4] > 0 || r[5] > 0)).map(r => r[1])
+    );
+    rows = rows.filter(r => activeCampaigns.has(r[1]));
+  }
+  return rows;
+}
+function getTrendFiltered(){
+  const rows = getFiltered();
+  const camp = campaignFilter.value;
+  const adset = adsetFilter.value;
+  let filtered = rows;
+  if (camp !== '__all__') filtered = filtered.filter(r => r[1] === camp);
+  if (adset && adset !== '__all__') filtered = filtered.filter(r => r[2] === adset);
+  return filtered;
+}
+
+function render(){
+  const rows = getFiltered();
+  const groupTable = document.getElementById('groupTable');
+  const emptyState = document.getElementById('emptyState');
+  if (rows.length === 0){
+    document.getElementById('kpis').innerHTML = '';
+    groupTable.innerHTML = '';
+    emptyState.style.display = 'block';
+    [trendChart,cpcTrendChart,leadsTrendChart,cpcBarChart].forEach(c=>c&&c.destroy());
+    return;
+  }
+  emptyState.style.display = 'none';
+
+  let totSpend=0, totClicks=0, totImpr=0, totLeads=0, totConv=0;
+  rows.forEach(r=>{totSpend+=r[4]; totClicks+=r[3]; totImpr+=r[5]; totLeads+=r[6]; totConv+=r[7];});
+  const avgCpc = totClicks>0 ? totSpend/totClicks : 0;
+  const kpiData = [
+    ["Total spend", "Rs." + Math.round(totSpend).toLocaleString('en-IN')],
+    ["Clicks", totClicks.toLocaleString('en-IN')],
+    ["Impressions", totImpr.toLocaleString('en-IN')],
+    ["Avg CTR", totImpr>0 ? (totClicks/totImpr*100).toFixed(2) + "%" : "0%"],
+    ["Avg CPC", "Rs." + avgCpc.toFixed(2)],
+    ["Conversions", totConv],
+    ["Leads", totLeads]
+  ];
+  document.getElementById('kpis').innerHTML = kpiData.map(k =>
+    `<div class="kpi"><p class="label">${k[0]}</p><p class="value">${k[1]}</p></div>`).join('');
+
+  // ---- Trend charts (respect campaign filter) ----
+  const trows = getTrendFiltered();
+  const byDate = {};
+  trows.forEach(r=>{
+    const d = r[0];
+    if(!byDate[d]) byDate[d] = {spend:0, clicks:0, impr:0, leads:0, conv:0};
+    byDate[d].spend += r[4]; byDate[d].clicks += r[3]; byDate[d].impr += r[5]; byDate[d].leads += r[6]; byDate[d].conv += r[7];
+  });
+  const dates = Object.keys(byDate).sort();
+  const spendSeries = dates.map(d=>Math.round(byDate[d].spend));
+  const ctrSeries = dates.map(d=> byDate[d].impr>0 ? +(byDate[d].clicks/byDate[d].impr*100).toFixed(2) : 0);
+  const cpcSeries = dates.map(d=> byDate[d].clicks>0 ? +(byDate[d].spend/byDate[d].clicks).toFixed(2) : 0);
+  const leadsSeries = dates.map(d=>byDate[d].leads);
+  const convSeries = dates.map(d=>byDate[d].conv);
+  const imprSeries = dates.map(d=>byDate[d].impr);
+  const clicksSeries = dates.map(d=>byDate[d].clicks);
+  const labels = dates.map(d=>d.slice(5));
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('trendChart'), {
+    data: { labels, datasets: [
+      {type:'line', label:'Spend', data: spendSeries, borderColor:'#2a78d6', backgroundColor:'#2a78d6', borderWidth:2, pointRadius:0, yAxisID:'y'},
+      {type:'line', label:'CTR', data: ctrSeries, borderColor:'#eb6834', backgroundColor:'#eb6834', borderWidth:2, pointRadius:0, yAxisID:'y1'}
+    ]},
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ ticks:{maxRotation:45, autoSkip:true, color:'#9aa1ad', font:{size:10}}, grid:{display:false} },
+        y:{ position:'left', ticks:{color:'#9aa1ad'}, grid:{color:'#e2e5ea'} },
+        y1:{ position:'right', ticks:{color:'#9aa1ad'}, grid:{display:false} } } }
+  });
+
+  if (cpcTrendChart) cpcTrendChart.destroy();
+  cpcTrendChart = new Chart(document.getElementById('cpcTrendChart'), {
+    type:'line',
+    data: { labels, datasets:[{ label:'CPC', data: cpcSeries, borderColor:'#4a3aa7', backgroundColor:'#4a3aa7', borderWidth:2, pointRadius:0, tension:0.2 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ ticks:{maxRotation:45, autoSkip:true, color:'#9aa1ad', font:{size:9}}, grid:{display:false} }, y:{ ticks:{color:'#9aa1ad'}, grid:{color:'#e2e5ea'} } } }
+  });
+
+  if (leadsTrendChart) leadsTrendChart.destroy();
+  leadsTrendChart = new Chart(document.getElementById('leadsTrendChart'), {
+    data: { labels, datasets:[
+      {type:'bar', label:'Leads', data: leadsSeries, backgroundColor:'#1baf7a'},
+      {type:'bar', label:'Conversions', data: convSeries, backgroundColor:'#c98500'}
+    ]},
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ ticks:{maxRotation:45, autoSkip:true, color:'#9aa1ad', font:{size:9}}, grid:{display:false} }, y:{ ticks:{color:'#9aa1ad'}, grid:{color:'#e2e5ea'} } } }
+  });
+
+  if (imprTrendChart) imprTrendChart.destroy();
+  imprTrendChart = new Chart(document.getElementById('imprTrendChart'), {
+    type:'line',
+    data: { labels, datasets:[{ label:'Impressions', data: imprSeries, borderColor:'#2a78d6', backgroundColor:'#2a78d6', borderWidth:2, pointRadius:0, tension:0.2 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ ticks:{maxRotation:45, autoSkip:true, color:'#9aa1ad', font:{size:9}}, grid:{display:false} }, y:{ ticks:{color:'#9aa1ad'}, grid:{color:'#e2e5ea'} } } }
+  });
+
+  if (clicksTrendChart) clicksTrendChart.destroy();
+  clicksTrendChart = new Chart(document.getElementById('clicksTrendChart'), {
+    type:'line',
+    data: { labels, datasets:[{ label:'Clicks', data: clicksSeries, borderColor:'#eb6834', backgroundColor:'#eb6834', borderWidth:2, pointRadius:0, tension:0.2 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ ticks:{maxRotation:45, autoSkip:true, color:'#9aa1ad', font:{size:9}}, grid:{display:false} }, y:{ ticks:{color:'#9aa1ad'}, grid:{color:'#e2e5ea'} } } }
+  });
+
+  // ---- Group by campaign (date-range filtered, not campaign filtered) ----
+  const groups = {};
+  rows.forEach(r=>{
+    const g = r[1];
+    if(!groups[g]) groups[g] = {spend:0, clicks:0, impr:0, leads:0, conv:0, adsets:{}};
+    groups[g].spend += r[4]; groups[g].clicks += r[3]; groups[g].impr += r[5]; groups[g].leads += r[6]; groups[g].conv += r[7];
+    if(!groups[g].adsets[r[2]]) groups[g].adsets[r[2]] = {spend:0, clicks:0, impr:0, leads:0, conv:0};
+    const a = groups[g].adsets[r[2]];
+    a.spend += r[4]; a.clicks += r[3]; a.impr += r[5]; a.leads += r[6]; a.conv += r[7];
+  });
+
+  let groupList = Object.entries(groups).map(([name,d])=>({
+    name, adsets:Object.keys(d.adsets).length, spend:d.spend, clicks:d.clicks,
+    ctr: d.impr>0 ? d.clicks/d.impr*100 : 0,
+    cpc: d.clicks>0 ? d.spend/d.clicks : 0,
+    conv: d.conv, leads: d.leads,
+    cpl: d.leads>0 ? d.spend/d.leads : null,
+    _raw:d
+  }));
+
+  groupList.sort((a,b)=>{
+    let av=a[sortKey], bv=b[sortKey];
+    if (av===null) av = -Infinity; if (bv===null) bv = -Infinity;
+    if (typeof av==='string') return sortDir * av.localeCompare(bv);
+    return sortDir * (av-bv);
+  });
+
+  if (cpcBarChart) cpcBarChart.destroy();
+  const cpcSorted = [...groupList].sort((a,b)=>b.cpc-a.cpc);
+  cpcBarChart = new Chart(document.getElementById('cpcBarChart'), {
+    type:'bar',
+    data: { labels: cpcSorted.map(g=>g.name), datasets:[{ data: cpcSorted.map(g=>+g.cpc.toFixed(2)), backgroundColor: palette, borderRadius:4 }] },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ grid:{color:'#e2e5ea'}, ticks:{color:'#9aa1ad'} }, y:{ grid:{display:false}, ticks:{color:'#6b7280', font:{size:10}} } } }
+  });
+
+  groupTable.innerHTML = groupList.map((g,i)=>{
+    const cplDisplay = g.cpl===null ? '&mdash;' : 'Rs.' + Math.round(g.cpl).toLocaleString('en-IN');
+    const st = campaignStatus[g.name] || 'Active';
+    const statusBadge = st === 'Paused'
+      ? '<span class="pill warn" style="margin-left:6px;">Paused</span>'
+      : '<span class="pill" style="margin-left:6px;">Active</span>';
+    const drillable = g.adsets > 1;
+    const nameCell = drillable
+      ? `<span class="caret">&#9656;</span>${g.name}${statusBadge}`
+      : `<span style="display:inline-block; width:17px;"></span>${g.name}${statusBadge}`;
+    return `<tr class="group-row" data-group="${g.name}" data-drillable="${drillable}" style="cursor:${drillable?'pointer':'default'};"><td>${nameCell}</td>
+    <td class="num">${g.adsets}</td>
+    <td class="num">Rs.${Math.round(g.spend).toLocaleString('en-IN')}</td>
+    <td class="num">${g.clicks.toLocaleString('en-IN')}</td>
+    <td class="num">${g.ctr.toFixed(2)}%</td>
+    <td class="num">Rs.${g.cpc.toFixed(2)}</td>
+    <td class="num">${g.conv}</td>
+    <td class="num">${g.leads > 0 ? '<span class="pill">'+g.leads+'</span>' : g.leads}</td>
+    <td class="num">${cplDisplay}</td></tr>
+    <tr class="detail-row" id="detail-${i}" style="display:none;"><td colspan="9"></td></tr>`;
+  }).join('');
+
+  document.querySelectorAll('th[data-key]').forEach(th=>{
+    th.classList.toggle('sorted', th.dataset.key===sortKey);
+  });
+
+  document.querySelectorAll('.group-row').forEach((row, i) => {
+    if (row.dataset.drillable !== 'true') return;
+    row.addEventListener('click', () => {
+      const detailRow = document.getElementById('detail-' + i);
+      const caret = row.querySelector('.caret');
+      const isOpen = detailRow.style.display !== 'none';
+      document.querySelectorAll('.detail-row').forEach(r => r.style.display = 'none');
+      document.querySelectorAll('.caret').forEach(c => c.classList.remove('open'));
+      if (!isOpen) {
+        const g = row.dataset.group;
+        const adsets = groups[g].adsets;
+        const rowsHtml = Object.entries(adsets).sort((a,b)=>b[1].spend-a[1].spend).map(([name,a])=>{
+          const actr = a.impr>0 ? (a.clicks/a.impr*100).toFixed(2) : '0.00';
+          const acpc = a.clicks>0 ? (a.spend/a.clicks).toFixed(2) : '0.00';
+          const acpl = a.leads>0 ? Math.round(a.spend/a.leads).toLocaleString('en-IN') : '&mdash;';
+          return `<tr><td>${name}</td><td class="num">${'-'}</td><td class="num">Rs.${Math.round(a.spend).toLocaleString('en-IN')}</td>
+          <td class="num">${a.clicks.toLocaleString('en-IN')}</td><td class="num">${actr}%</td><td class="num">Rs.${acpc}</td>
+          <td class="num">${a.conv}</td><td class="num">${a.leads}</td><td class="num">${a.leads>0?'Rs.'+acpl:'&mdash;'}</td></tr>`;
+        }).join('');
+        detailRow.querySelector('td').innerHTML = `<table class="subtable"><tbody>${rowsHtml}</tbody></table>`;
+        detailRow.style.display = 'table-row';
+        caret.classList.add('open');
+      }
+    });
+  });
+
+  document.getElementById('footerNote').textContent =
+    `Showing ${document.getElementById('fromDate').value} to ${document.getElementById('toDate').value} · data through Aug 9, 2026 (latest fully-parsed snapshot) · sorted by ${sortKey}`;
+}
+
+document.querySelectorAll('th[data-key]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    if (key==='name'||key==='adsets') { sortDir = sortKey===key ? -sortDir : 1; }
+    else { sortDir = sortKey===key ? -sortDir : -1; }
+    sortKey = key;
+    render();
+  });
+});
+
+function setPreset(days){
+  document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
+  if (days === 'all'){
+    document.getElementById('fromDate').value = minDate;
+    document.getElementById('toDate').value = maxDate;
+    document.querySelector('[data-preset="all"]').classList.add('active');
+  } else {
+    const to = new Date(maxDate);
+    const from = new Date(to);
+    from.setDate(from.getDate() - days + 1);
+    document.getElementById('fromDate').value = from.toISOString().slice(0,10);
+    document.getElementById('toDate').value = to.toISOString().slice(0,10);
+    document.querySelector(`[data-preset="${days}"]`).classList.add('active');
+  }
+  render();
+}
+document.querySelectorAll('.presets button').forEach(b=>{
+  if (b.dataset.status){
+    b.addEventListener('click', () => {
+      document.querySelectorAll('[data-status]').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      statusFilter = b.dataset.status;
+      render();
+    });
+  }
+});
+document.querySelectorAll('.presets button').forEach(b=>{
+  if (b.dataset.preset) b.addEventListener('click', () => setPreset(b.dataset.preset === 'all' ? 'all' : Number(b.dataset.preset)));
+});
+document.getElementById('fromDate').addEventListener('change', () => {
+  document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
+  render();
+});
+document.getElementById('toDate').addEventListener('change', () => {
+  document.querySelectorAll('.presets button[data-preset]').forEach(b=>b.classList.remove('active'));
+  render();
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
+    btn.classList.add('active');
+    document.querySelector(`.tab-panel[data-panel="${btn.dataset.tab}"]`).style.display='';
+  });
+});
+
+render();
+} // end initDashboard
+
+loadData();
+</script>
+</body>
+</html>
