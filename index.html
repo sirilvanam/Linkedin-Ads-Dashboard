@@ -152,7 +152,7 @@
 
 <script>
 // Live data fetched from Google Apps Script Web App
-const API_URL = 'https://script.google.com/macros/s/AKfycby4wn0E0wAluLY-ybldEsis4_0-N97g2LSmqx4GdFHdyuOOA2des3kPWQh_nQLmQxlg/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyrUMBY29hVRSLUQk6NKVYf7dmApQVXMIay-emrmAVM0k9_GlwL5t7bE8FX7n_VksTo/exec';
 let rawRows = [];
 let dashboardReady = false;
 
@@ -176,11 +176,7 @@ const palette = ['#2a78d6','#eb6834','#1baf7a','#c98500','#d55181','#4a3aa7','#e
 let trendChart, cpcTrendChart, leadsTrendChart, cpcBarChart, imprTrendChart, clicksTrendChart;
 let sortKey = 'spend', sortDir = -1;
 let statusFilter = 'all';
-
-const allDates = rawRows.map(r=>r[0]).sort();
-const minDate = allDates[0], maxDate = allDates[allDates.length-1];
-document.getElementById('fromDate').value = minDate;
-document.getElementById('toDate').value = maxDate;
+let minDate, maxDate;
 
 const campaignStatus = {
   'PDV_WebVisits_Stage1': 'Paused',
@@ -194,6 +190,11 @@ const campaignStatus = {
 };
 
 function initDashboard(){
+const allDates = rawRows.map(r=>r[0]).sort();
+minDate = allDates[0]; maxDate = allDates[allDates.length-1];
+document.getElementById('fromDate').value = minDate;
+document.getElementById('toDate').value = maxDate;
+
 Object.assign(campaignStatus, campaignStatusLive);
 
 const campaignNames = [...new Set(rawRows.map(r=>r[1]))].sort();
