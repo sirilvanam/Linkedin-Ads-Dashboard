@@ -59,14 +59,10 @@
 <header>
   <div>
     <h1>LinkedIn Ads Optimization Dashboard</h1>
-    <p id="lastUpdated" style="color:var(--sub); font-size:12px; margin:4px 0 0;">Not connected — connect a sheet or upload a CSV below to see data.</p>
+    <p id="lastUpdated" style="color:var(--sub); font-size:12px; margin:4px 0 0;">Not connected — connect your sheet below to see data.</p>
     <div id="configBar" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
       <input type="text" id="apiUrlInput" placeholder="Paste your Google Apps Script Web App URL" style="flex:1; min-width:280px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--card); color:var(--text);">
       <button id="connectBtn" style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:#2a78d6; color:#fff; font-size:12px; cursor:pointer;">Connect</button>
-      <span style="color:var(--muted); font-size:12px;">or</span>
-      <label style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card2); color:var(--text); font-size:12px; cursor:pointer;">
-        Upload CSV<input type="file" id="csvUpload" accept=".csv" style="display:none;">
-      </label>
       <button id="howToBtn" style="padding:7px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card2); color:var(--text); font-size:12px; cursor:pointer;">How do I use this?</button>
     </div>
   </div>
@@ -88,34 +84,38 @@
 
   <div id="instructionsPanel" class="card" style="display:none; margin-bottom:24px;">
     <h2 style="font-size:16px; margin:0 0 14px;">How to use this dashboard</h2>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
-      <div>
-        <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Option A — Connect a live Google Sheet</p>
-        <ol style="font-size:13px; color:var(--sub); margin:0; padding-left:18px; line-height:1.7;">
-          <li>Open your LinkedIn Ads export sheet in Google Sheets.</li>
-          <li>Go to <strong>Extensions &gt; Apps Script</strong>, delete any starter code.</li>
-          <li>Paste in the provided <code>apps_script_code.gs</code> file contents. Update <code>SHEET_NAME</code> if your tab isn't named "Sheet1".</li>
-          <li>Click <strong>Deploy &gt; New deployment</strong> &rarr; type <strong>Web app</strong>.</li>
-          <li>Set "Execute as" to <strong>Me</strong>, "Who has access" to <strong>Anyone</strong>. Deploy and authorize.</li>
-          <li>Copy the URL ending in <code>/exec</code>, paste it into the box above, click <strong>Connect</strong>.</li>
-        </ol>
-      </div>
-      <div>
-        <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Option B — Upload a CSV</p>
-        <ol style="font-size:13px; color:var(--sub); margin:0; padding-left:18px; line-height:1.7;">
-          <li>Export your campaign report from LinkedIn Campaign Manager (or Windsor.ai / similar) as CSV.</li>
-          <li>Make sure it includes these columns: <code>Start Date (in UTC)</code>, <code>Campaign Name</code>, <code>Ad Set Name</code>, <code>Clicks</code>, <code>Total Spent</code>, <code>Impressions</code>, <code>Leads</code>, <code>Conversions</code>.</li>
-          <li>Click <strong>Upload CSV</strong> above and select the file.</li>
-          <li>The dashboard loads instantly — no sheet connection needed, but it won't auto-refresh with new data.</li>
-        </ol>
-      </div>
-    </div>
-    <p style="font-size:12px; color:var(--muted); margin:16px 0 0;">Once connected, this dashboard shows spend, CTR, CPC, leads, and conversions by campaign and ad set, with sortable tables and date-range filters. Nothing is uploaded to any server — the CSV is parsed entirely in your browser, and the sheet connection talks directly to your own Google Apps Script endpoint.</p>
+
+    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 1 — Get your data from LinkedIn</p>
+    <ol style="font-size:13px; color:var(--sub); margin:0 0 18px; padding-left:18px; line-height:1.7;">
+      <li>In LinkedIn Campaign Manager, go to <strong>Advertise &gt; Export</strong>.</li>
+      <li>Select <strong>Ad set performance (broken out by day)</strong> as the report type.</li>
+      <li>Download the export and open it — this gives you one row per ad set per day, which is exactly the format this dashboard expects.</li>
+    </ol>
+
+    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 2 — Prepare your Google Sheet</p>
+    <ol style="font-size:13px; color:var(--sub); margin:0 0 18px; padding-left:18px; line-height:1.7;">
+      <li>Create a new Google Sheet (or use an existing one).</li>
+      <li>Copy all rows and columns from the LinkedIn export — including the header row — and paste them into the first tab, starting at cell A1. Don't skip rows or add extra header rows above it.</li>
+      <li>Keep the LinkedIn column names exactly as exported. This dashboard specifically reads: <code>Start Date (in UTC)</code>, <code>Campaign Name</code>, <code>Ad Set Name</code>, <code>Clicks</code>, <code>Total Spent</code>, <code>Impressions</code>, <code>Leads</code>, <code>Conversions</code>, and <code>Campaign Status</code>.</li>
+      <li>Each time you have new data, paste the additional day(s) as new rows underneath the existing ones (don't overwrite history) — the dashboard will pick up everything currently in the sheet.</li>
+    </ol>
+
+    <p style="font-weight:600; font-size:13px; margin:0 0 8px;">Step 3 — Connect the sheet to this dashboard</p>
+    <ol style="font-size:13px; color:var(--sub); margin:0 0 18px; padding-left:18px; line-height:1.7;">
+      <li>Download the Apps Script code: <a href="apps_script_code.gs" download style="color:#2a78d6;">apps_script_code.gs</a></li>
+      <li>In your Google Sheet, go to <strong>Extensions &gt; Apps Script</strong>, delete any starter code, and paste in the downloaded file's contents.</li>
+      <li>Update the <code>SHEET_NAME</code> constant near the top of the script if your tab isn't named "Sheet1".</li>
+      <li>Click <strong>Deploy &gt; New deployment</strong> &rarr; type <strong>Web app</strong>.</li>
+      <li>Set "Execute as" to <strong>Me</strong>, and "Who has access" to <strong>Anyone</strong>. Click Deploy and authorize when prompted.</li>
+      <li>Copy the URL ending in <code>/exec</code>, paste it into the box above, and click <strong>Connect</strong>.</li>
+    </ol>
+
+    <p style="font-size:12px; color:var(--muted); margin:16px 0 0;">Once connected, this dashboard shows spend, CTR, CPC, leads, and conversions by campaign and ad set, with sortable tables, date-range filters, and trend charts. The sheet connection talks directly to your own Google Apps Script endpoint — nothing passes through any other server.</p>
   </div>
 
   <div id="emptyStateMain" class="card" style="text-align:center; padding:60px 20px; color:var(--sub);">
     <p style="font-size:15px; margin:0 0 8px; color:var(--text);">No data connected yet</p>
-    <p style="font-size:13px; margin:0;">Connect a Google Sheet or upload a CSV above to see your campaign performance.</p>
+    <p style="font-size:13px; margin:0;">Click "How do I use this?" above for setup steps, then connect your Google Sheet to see your campaign performance.</p>
   </div>
 
   <div id="dashboardBody" style="display:none;">
@@ -219,76 +219,6 @@ document.getElementById('howToBtn').addEventListener('click', () => {
   const panel = document.getElementById('instructionsPanel');
   panel.style.display = panel.style.display === 'none' ? '' : 'none';
 });
-
-document.getElementById('csvUpload').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    try {
-      const rows = parseCsv(evt.target.result);
-      rawRows = rows;
-      campaignStatusLive = {};
-      document.getElementById('lastUpdated').textContent = 'Loaded from uploaded CSV: ' + file.name;
-      showDashboard();
-      initDashboard();
-    } catch(err){
-      document.getElementById('lastUpdated').textContent = 'Could not parse CSV - check the column headers match the expected export format.';
-      console.error(err);
-    }
-  };
-  reader.readAsText(file);
-});
-
-function parseCsv(text){
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  const headers = splitCsvLine(lines[0]).map(h => h.trim());
-  const col = {};
-  headers.forEach((h,i) => { col[h] = i; });
-  const need = ['Start Date (in UTC)','Campaign Name','Ad Set Name','Clicks','Total Spent','Impressions','Leads','Conversions'];
-  const missing = need.filter(k => !(k in col));
-  if (missing.length) throw new Error('Missing columns: ' + missing.join(', '));
-  const out = [];
-  for (let i=1; i<lines.length; i++){
-    const parts = splitCsvLine(lines[i]);
-    if (parts.length < headers.length) continue;
-    const dateRaw = parts[col['Start Date (in UTC)']];
-    const dateIso = normalizeDateJs(dateRaw);
-    if (!dateIso) continue;
-    out.push([
-      dateIso,
-      (parts[col['Campaign Name']]||'').trim(),
-      (parts[col['Ad Set Name']]||'').trim(),
-      Number(parts[col['Clicks']]||0),
-      Number((parts[col['Total Spent']]||'0').replace(/,/g,'')),
-      Number((parts[col['Impressions']]||'0').replace(/,/g,'')),
-      Number(parts[col['Leads']]||0),
-      Number(parts[col['Conversions']]||0)
-    ]);
-  }
-  return out;
-}
-function splitCsvLine(line){
-  const result = []; let cur=''; let inQ=false;
-  for (let i=0;i<line.length;i++){
-    const c = line[i];
-    if (c === '"') { inQ = !inQ; }
-    else if (c === ',' && !inQ) { result.push(cur); cur=''; }
-    else { cur += c; }
-  }
-  result.push(cur);
-  return result;
-}
-function normalizeDateJs(s){
-  s = String(s).trim();
-  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-  m = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (m) return `${m[3]}-${m[1]}-${m[2]}`;
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) return s;
-  return null;
-}
 
 function showDashboard(){
   document.getElementById('emptyStateMain').style.display = 'none';
