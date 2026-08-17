@@ -207,6 +207,19 @@
 let rawRows = [];
 let campaignStatusLive = {};
 
+function computeLatestStatus(triples){
+  // triples: [date, campaign, status][] -- picks the status from each campaign's most recent date
+  const latest = {}; // campaign -> {date, status}
+  triples.forEach(([date, campaign, status]) => {
+    if (!latest[campaign] || date > latest[campaign].date){
+      latest[campaign] = { date, status };
+    }
+  });
+  const result = {};
+  Object.keys(latest).forEach(c => { result[c] = latest[c].status; });
+  return result;
+}
+
 function getStoredUrl(){
   try { return localStorage.getItem('pdv_dashboard_api_url') || ''; }
   catch(e){ return ''; }
@@ -239,8 +252,7 @@ document.getElementById('csvUpload').addEventListener('change', (e) => {
       const text = decodeLinkedInFile(buf);
       const parsed = parseLinkedInText(text);
       rawRows = parsed.map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]]);
-      campaignStatusLive = {};
-      parsed.forEach(r => { campaignStatusLive[r[1]] = r[8]; });
+      campaignStatusLive = computeLatestStatus(parsed.map(r => [r[0], r[1], r[8]]));
       document.getElementById('lastUpdated').textContent = 'Loaded from uploaded file: ' + file.name + ' (' + parsed.length + ' rows)';
       showDashboard();
       initDashboard();
@@ -334,8 +346,7 @@ async function loadData(url){
     const res = await fetch(url);
     const json = await res.json();
     rawRows = json.rows.map(r => [r.date, r.campaign, r.adset, r.clicks, r.spend, r.impressions, r.leads, r.conversions]);
-    campaignStatusLive = {};
-    json.rows.forEach(r => { campaignStatusLive[r.campaign] = r.status; });
+    campaignStatusLive = computeLatestStatus(json.rows.map(r => [r.date, r.campaign, r.status]));
     document.getElementById('lastUpdated').textContent = 'Live - last refreshed ' + new Date(json.generated_at).toLocaleString();
     showDashboard();
     initDashboard();
