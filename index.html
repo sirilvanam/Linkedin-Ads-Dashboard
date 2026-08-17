@@ -199,6 +199,7 @@
   </div>
 
   <p class="footer-note" id="footerNote"></p>
+  <p class="footer-note" style="color:var(--muted); font-size:11px;">Build: 2026-08-17 12:43:00 UTC. If a fix doesn't seem to apply, hard-refresh this page (Ctrl+Shift+R / Cmd+Shift+R) to bypass the browser cache.</p>
   </div>
 </div>
 
@@ -210,10 +211,17 @@ let campaignStatusLive = {}; // status computed from full dataset (used for drop
 
 function computeLatestStatus(triples){
   // triples: [date, campaign, status][] -- picks the status from each campaign's most recent date within the given triples
+  const normalize = (s) => {
+    const clean = String(s || '').trim().toLowerCase();
+    if (clean === 'paused') return 'Paused';
+    if (clean === 'active') return 'Active';
+    return clean ? (clean.charAt(0).toUpperCase() + clean.slice(1)) : 'Active';
+  };
   const latest = {}; // campaign -> {date, status}
   triples.forEach(([date, campaign, status]) => {
+    if (!campaign || campaign.trim().toLowerCase() === 'campaign name') return; // skip stray header rows pasted mid-sheet
     if (!latest[campaign] || date > latest[campaign].date){
-      latest[campaign] = { date, status };
+      latest[campaign] = { date, status: normalize(status) };
     }
   });
   const result = {};
@@ -252,7 +260,7 @@ document.getElementById('csvUpload').addEventListener('change', (e) => {
       const buf = evt.target.result;
       const text = decodeLinkedInFile(buf);
       const parsed = parseLinkedInText(text);
-      rawRows = parsed.map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]]);
+      rawRows = parsed.filter(r => r[1] && r[1].trim().toLowerCase() !== 'campaign name').map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]]);
       statusTriples = parsed.map(r => [r[0], r[1], r[8]]);
       campaignStatusLive = computeLatestStatus(statusTriples);
       document.getElementById('lastUpdated').textContent = 'Loaded from uploaded file: ' + file.name + ' (' + parsed.length + ' rows)';
@@ -347,7 +355,7 @@ async function loadData(url){
   try {
     const res = await fetch(url);
     const json = await res.json();
-    rawRows = json.rows.map(r => [r.date, r.campaign, r.adset, r.clicks, r.spend, r.impressions, r.leads, r.conversions]);
+    rawRows = json.rows.filter(r => r.campaign && r.campaign.trim().toLowerCase() !== 'campaign name').map(r => [r.date, r.campaign, r.adset, r.clicks, r.spend, r.impressions, r.leads, r.conversions]);
     statusTriples = json.rows.map(r => [r.date, r.campaign, r.status]);
     campaignStatusLive = computeLatestStatus(statusTriples);
     document.getElementById('lastUpdated').textContent = 'Live - last refreshed ' + new Date(json.generated_at).toLocaleString();
@@ -462,6 +470,92 @@ function render(){
   document.getElementById('kpis').innerHTML = kpiData.map(k =>
     `<div class="kpi"><p class="label">${k[0]}</p><p class="value">${k[1]}</p></div>`).join('');
 
+  // ---- Group by campaign (date-range filtered, not campaign filtered) ----
+  // Built and rendered BEFORE charts, so a chart failure can never block the table/status from updating.
+  const groups = {};
+  rows.forEach(r=>{
+    const g = r[1];
+    if(!groups[g]) groups[g] = {spend:0, clicks:0, impr:0, leads:0, conv:0, adsets:{}};
+    groups[g].spend += r[4]; groups[g].clicks += r[3]; groups[g].impr += r[5]; groups[g].leads += r[6]; groups[g].conv += r[7];
+    if(!groups[g].adsets[r[2]]) groups[g].adsets[r[2]] = {spend:0, clicks:0, impr:0, leads:0, conv:0};
+    const a = groups[g].adsets[r[2]];
+    a.spend += r[4]; a.clicks += r[3]; a.impr += r[5]; a.leads += r[6]; a.conv += r[7];
+  });
+
+  let groupList = Object.entries(groups).map(([name,d])=>({
+    name, adsets:Object.keys(d.adsets).length, spend:d.spend, clicks:d.clicks,
+    ctr: d.impr>0 ? d.clicks/d.impr*100 : 0,
+    cpc: d.clicks>0 ? d.spend/d.clicks : 0,
+    conv: d.conv, leads: d.leads,
+    cpl: d.leads>0 ? d.spend/d.leads : null,
+    _raw:d
+  }));
+
+  groupList.sort((a,b)=>{
+    let av=a[sortKey], bv=b[sortKey];
+    if (av===null) av = -Infinity; if (bv===null) bv = -Infinity;
+    if (typeof av==='string') return sortDir * av.localeCompare(bv);
+    return sortDir * (av-bv);
+  });
+
+  groupTable.innerHTML = groupList.map((g,i)=>{
+    const cplDisplay = g.cpl===null ? '&mdash;' : 'Rs.' + Math.round(g.cpl).toLocaleString('en-IN');
+    const st = campaignStatus[g.name] || 'Active';
+    const statusBadge = st === 'Paused'
+      ? '<span class="pill warn" style="margin-left:6px;">Paused</span>'
+      : '<span class="pill" style="margin-left:6px;">Active</span>';
+    const drillable = g.adsets > 1;
+    const nameCell = drillable
+      ? `<span class="caret">&#9656;</span>${g.name}${statusBadge}`
+      : `<span style="display:inline-block; width:17px;"></span>${g.name}${statusBadge}`;
+    return `<tr class="group-row" data-group="${g.name}" data-drillable="${drillable}" style="cursor:${drillable?'pointer':'default'};"><td>${nameCell}</td>
+    <td class="num">${g.adsets}</td>
+    <td class="num">Rs.${Math.round(g.spend).toLocaleString('en-IN')}</td>
+    <td class="num">${g.clicks.toLocaleString('en-IN')}</td>
+    <td class="num">${g.ctr.toFixed(2)}%</td>
+    <td class="num">Rs.${g.cpc.toFixed(2)}</td>
+    <td class="num">${g.conv}</td>
+    <td class="num">${g.leads > 0 ? '<span class="pill">'+g.leads+'</span>' : g.leads}</td>
+    <td class="num">${cplDisplay}</td></tr>
+    <tr class="detail-row" id="detail-${i}" style="display:none;"><td colspan="9"></td></tr>`;
+  }).join('');
+
+  document.querySelectorAll('th[data-key]').forEach(th=>{
+    th.classList.toggle('sorted', th.dataset.key===sortKey);
+  });
+
+  document.querySelectorAll('.group-row').forEach((row, i) => {
+    if (row.dataset.drillable !== 'true') return;
+    row.addEventListener('click', () => {
+      const detailRow = document.getElementById('detail-' + i);
+      const caret = row.querySelector('.caret');
+      const isOpen = detailRow.style.display !== 'none';
+      document.querySelectorAll('.detail-row').forEach(r => r.style.display = 'none');
+      document.querySelectorAll('.caret').forEach(c => c.classList.remove('open'));
+      if (!isOpen) {
+        const g = row.dataset.group;
+        const adsets = groups[g].adsets;
+        const rowsHtml = Object.entries(adsets).sort((a,b)=>b[1].spend-a[1].spend).map(([name,a])=>{
+          const actr = a.impr>0 ? (a.clicks/a.impr*100).toFixed(2) : '0.00';
+          const acpc = a.clicks>0 ? (a.spend/a.clicks).toFixed(2) : '0.00';
+          const acpl = a.leads>0 ? Math.round(a.spend/a.leads).toLocaleString('en-IN') : '&mdash;';
+          return `<tr><td>${name}</td><td class="num">${'-'}</td><td class="num">Rs.${Math.round(a.spend).toLocaleString('en-IN')}</td>
+          <td class="num">${a.clicks.toLocaleString('en-IN')}</td><td class="num">${actr}%</td><td class="num">Rs.${acpc}</td>
+          <td class="num">${a.conv}</td><td class="num">${a.leads}</td><td class="num">${a.leads>0?'Rs.'+acpl:'&mdash;'}</td></tr>`;
+        }).join('');
+        detailRow.querySelector('td').innerHTML = `<table class="subtable"><tbody>${rowsHtml}</tbody></table>`;
+        detailRow.style.display = 'table-row';
+        caret.classList.add('open');
+      }
+    });
+  });
+
+  document.getElementById('footerNote').textContent =
+    `Showing ${document.getElementById('fromDate').value} to ${document.getElementById('toDate').value} · ${rows.length} rows · sorted by ${sortKey}`;
+
+  // ---- Charts (wrapped so a chart failure can never block the table/status above) ----
+  try {
+
   // ---- Trend charts (respect campaign filter) ----
   const trows = getTrendFiltered();
   const byDate = {};
@@ -526,33 +620,6 @@ function render(){
       scales:{ x:{ ticks:{maxRotation:45, autoSkip:true, color:'#9aa1ad', font:{size:9}}, grid:{display:false} }, y:{ ticks:{color:'#9aa1ad'}, grid:{color:'#e2e5ea'} } } }
   });
 
-  // ---- Group by campaign (date-range filtered, not campaign filtered) ----
-  const groups = {};
-  rows.forEach(r=>{
-    const g = r[1];
-    if(!groups[g]) groups[g] = {spend:0, clicks:0, impr:0, leads:0, conv:0, adsets:{}};
-    groups[g].spend += r[4]; groups[g].clicks += r[3]; groups[g].impr += r[5]; groups[g].leads += r[6]; groups[g].conv += r[7];
-    if(!groups[g].adsets[r[2]]) groups[g].adsets[r[2]] = {spend:0, clicks:0, impr:0, leads:0, conv:0};
-    const a = groups[g].adsets[r[2]];
-    a.spend += r[4]; a.clicks += r[3]; a.impr += r[5]; a.leads += r[6]; a.conv += r[7];
-  });
-
-  let groupList = Object.entries(groups).map(([name,d])=>({
-    name, adsets:Object.keys(d.adsets).length, spend:d.spend, clicks:d.clicks,
-    ctr: d.impr>0 ? d.clicks/d.impr*100 : 0,
-    cpc: d.clicks>0 ? d.spend/d.clicks : 0,
-    conv: d.conv, leads: d.leads,
-    cpl: d.leads>0 ? d.spend/d.leads : null,
-    _raw:d
-  }));
-
-  groupList.sort((a,b)=>{
-    let av=a[sortKey], bv=b[sortKey];
-    if (av===null) av = -Infinity; if (bv===null) bv = -Infinity;
-    if (typeof av==='string') return sortDir * av.localeCompare(bv);
-    return sortDir * (av-bv);
-  });
-
   if (cpcBarChart) cpcBarChart.destroy();
   const cpcSorted = [...groupList].sort((a,b)=>b.cpc-a.cpc);
   cpcBarChart = new Chart(document.getElementById('cpcBarChart'), {
@@ -562,60 +629,9 @@ function render(){
       scales:{ x:{ grid:{color:'#e2e5ea'}, ticks:{color:'#9aa1ad'} }, y:{ grid:{display:false}, ticks:{color:'#6b7280', font:{size:10}} } } }
   });
 
-  groupTable.innerHTML = groupList.map((g,i)=>{
-    const cplDisplay = g.cpl===null ? '&mdash;' : 'Rs.' + Math.round(g.cpl).toLocaleString('en-IN');
-    const st = campaignStatus[g.name] || 'Active';
-    const statusBadge = st === 'Paused'
-      ? '<span class="pill warn" style="margin-left:6px;">Paused</span>'
-      : '<span class="pill" style="margin-left:6px;">Active</span>';
-    const drillable = g.adsets > 1;
-    const nameCell = drillable
-      ? `<span class="caret">&#9656;</span>${g.name}${statusBadge}`
-      : `<span style="display:inline-block; width:17px;"></span>${g.name}${statusBadge}`;
-    return `<tr class="group-row" data-group="${g.name}" data-drillable="${drillable}" style="cursor:${drillable?'pointer':'default'};"><td>${nameCell}</td>
-    <td class="num">${g.adsets}</td>
-    <td class="num">Rs.${Math.round(g.spend).toLocaleString('en-IN')}</td>
-    <td class="num">${g.clicks.toLocaleString('en-IN')}</td>
-    <td class="num">${g.ctr.toFixed(2)}%</td>
-    <td class="num">Rs.${g.cpc.toFixed(2)}</td>
-    <td class="num">${g.conv}</td>
-    <td class="num">${g.leads > 0 ? '<span class="pill">'+g.leads+'</span>' : g.leads}</td>
-    <td class="num">${cplDisplay}</td></tr>
-    <tr class="detail-row" id="detail-${i}" style="display:none;"><td colspan="9"></td></tr>`;
-  }).join('');
-
-  document.querySelectorAll('th[data-key]').forEach(th=>{
-    th.classList.toggle('sorted', th.dataset.key===sortKey);
-  });
-
-  document.querySelectorAll('.group-row').forEach((row, i) => {
-    if (row.dataset.drillable !== 'true') return;
-    row.addEventListener('click', () => {
-      const detailRow = document.getElementById('detail-' + i);
-      const caret = row.querySelector('.caret');
-      const isOpen = detailRow.style.display !== 'none';
-      document.querySelectorAll('.detail-row').forEach(r => r.style.display = 'none');
-      document.querySelectorAll('.caret').forEach(c => c.classList.remove('open'));
-      if (!isOpen) {
-        const g = row.dataset.group;
-        const adsets = groups[g].adsets;
-        const rowsHtml = Object.entries(adsets).sort((a,b)=>b[1].spend-a[1].spend).map(([name,a])=>{
-          const actr = a.impr>0 ? (a.clicks/a.impr*100).toFixed(2) : '0.00';
-          const acpc = a.clicks>0 ? (a.spend/a.clicks).toFixed(2) : '0.00';
-          const acpl = a.leads>0 ? Math.round(a.spend/a.leads).toLocaleString('en-IN') : '&mdash;';
-          return `<tr><td>${name}</td><td class="num">${'-'}</td><td class="num">Rs.${Math.round(a.spend).toLocaleString('en-IN')}</td>
-          <td class="num">${a.clicks.toLocaleString('en-IN')}</td><td class="num">${actr}%</td><td class="num">Rs.${acpc}</td>
-          <td class="num">${a.conv}</td><td class="num">${a.leads}</td><td class="num">${a.leads>0?'Rs.'+acpl:'&mdash;'}</td></tr>`;
-        }).join('');
-        detailRow.querySelector('td').innerHTML = `<table class="subtable"><tbody>${rowsHtml}</tbody></table>`;
-        detailRow.style.display = 'table-row';
-        caret.classList.add('open');
-      }
-    });
-  });
-
-  document.getElementById('footerNote').textContent =
-    `Showing ${document.getElementById('fromDate').value} to ${document.getElementById('toDate').value} · data through Aug 9, 2026 (latest fully-parsed snapshot) · sorted by ${sortKey}`;
+  } catch (chartErr) {
+    console.error('Chart rendering failed (table and status above are unaffected):', chartErr);
+  }
 }
 
 if (!window.__pdvListenersBound) {
