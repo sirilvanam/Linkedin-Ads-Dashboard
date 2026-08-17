@@ -205,10 +205,11 @@
 <script>
 // No auto-load: dashboard only shows data once the user connects a sheet or uploads a CSV
 let rawRows = [];
-let campaignStatusLive = {};
+let statusTriples = []; // [date, campaign, status][] -- full history, filtered by date range at render time
+let campaignStatusLive = {}; // status computed from full dataset (used for dropdown label only)
 
 function computeLatestStatus(triples){
-  // triples: [date, campaign, status][] -- picks the status from each campaign's most recent date
+  // triples: [date, campaign, status][] -- picks the status from each campaign's most recent date within the given triples
   const latest = {}; // campaign -> {date, status}
   triples.forEach(([date, campaign, status]) => {
     if (!latest[campaign] || date > latest[campaign].date){
@@ -252,7 +253,8 @@ document.getElementById('csvUpload').addEventListener('change', (e) => {
       const text = decodeLinkedInFile(buf);
       const parsed = parseLinkedInText(text);
       rawRows = parsed.map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]]);
-      campaignStatusLive = computeLatestStatus(parsed.map(r => [r[0], r[1], r[8]]));
+      statusTriples = parsed.map(r => [r[0], r[1], r[8]]);
+      campaignStatusLive = computeLatestStatus(statusTriples);
       document.getElementById('lastUpdated').textContent = 'Loaded from uploaded file: ' + file.name + ' (' + parsed.length + ' rows)';
       showDashboard();
       initDashboard();
@@ -346,7 +348,8 @@ async function loadData(url){
     const res = await fetch(url);
     const json = await res.json();
     rawRows = json.rows.map(r => [r.date, r.campaign, r.adset, r.clicks, r.spend, r.impressions, r.leads, r.conversions]);
-    campaignStatusLive = computeLatestStatus(json.rows.map(r => [r.date, r.campaign, r.status]));
+    statusTriples = json.rows.map(r => [r.date, r.campaign, r.status]);
+    campaignStatusLive = computeLatestStatus(statusTriples);
     document.getElementById('lastUpdated').textContent = 'Live - last refreshed ' + new Date(json.generated_at).toLocaleString();
     showDashboard();
     initDashboard();
@@ -423,6 +426,15 @@ function getTrendFiltered(){
 }
 
 function render(){
+  // Recompute campaign status using only the currently-selected date range (must happen before getFiltered(),
+  // since the Active-only filter depends on campaignStatus)
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  for (const k in campaignStatus) delete campaignStatus[k];
+  Object.assign(campaignStatus, computeLatestStatus(
+    statusTriples.filter(([d]) => d >= from && d <= to)
+  ));
+
   const rows = getFiltered();
   const groupTable = document.getElementById('groupTable');
   const emptyState = document.getElementById('emptyState');
